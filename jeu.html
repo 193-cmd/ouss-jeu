@@ -1,0 +1,227 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<title>SIGNAL : RESTART</title>
+
+<style>
+body {
+    margin: 0;
+    background: radial-gradient(circle, #05010d, #000);
+    overflow: hidden;
+    font-family: monospace;
+}
+canvas {
+    display: block;
+    margin: auto;
+    background: linear-gradient(#0b1026, #000);
+}
+#ui {
+    position: absolute;
+    top: 10px;
+    width: 100%;
+    text-align: center;
+    color: #7df9ff;
+    font-size: 16px;
+}
+#cinematic {
+    position: absolute;
+    inset: 0;
+    background: black;
+    color: #7df9ff;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    font-size: 20px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="ui">ZONE 1 – LE SIGNAL FAIBLIT</div>
+<div id="cinematic"></div>
+<canvas id="game" width="800" height="420"></canvas>
+
+<script>
+const canvas = document.getElementById("game");
+const ctx = canvas.getContext("2d");
+const ui = document.getElementById("ui");
+const cinematic = document.getElementById("cinematic");
+
+let keys = {};
+let gravity = 0.6;
+let finished = false;
+let level = 1;
+
+const player = {
+    x: 50, y: 300,
+    vx: 0, vy: 0,
+    onGround: false,
+    lives: 3,
+    checkpointX: 50
+};
+
+const enemies = [];
+
+document.addEventListener("keydown", e => keys[e.key] = true);
+document.addEventListener("keyup", e => keys[e.key] = false);
+
+function spawnEnemies() {
+    enemies.length = 0;
+    for (let i = 0; i < level + 1; i++) {
+        enemies.push({
+            x: 300 + i * 160,
+            y: 310,
+            dir: Math.random() > 0.5 ? 1 : -1
+        });
+    }
+}
+spawnEnemies();
+
+/* === PIXEL ART === */
+
+function drawPixel(x, y, size, color) {
+    ctx.fillStyle = color;
+    ctx.fillRect(x, y, size, size);
+}
+
+function drawPlayer() {
+    const px = Math.floor(player.x);
+    const py = Math.floor(player.y);
+    const s = 4;
+
+    // capuche
+    for (let i = 0; i < 5; i++)
+        for (let j = 0; j < 5; j++)
+            drawPixel(px + i*s, py + j*s, s, "#111");
+
+    // corps
+    for (let i = 1; i < 4; i++)
+        for (let j = 5; j < 10; j++)
+            drawPixel(px + i*s, py + j*s, s, "#000");
+
+    // yeux lumineux
+    drawPixel(px + s, py + 2*s, s, "#7df9ff");
+    drawPixel(px + 3*s, py + 2*s, s, "#7df9ff");
+}
+
+function drawEnemy(e) {
+    const s = 4;
+    const ex = Math.floor(e.x);
+    const ey = Math.floor(e.y);
+
+    // corps ombre
+    for (let i = 0; i < 5; i++)
+        for (let j = 0; j < 5; j++)
+            drawPixel(ex + i*s, ey + j*s, s, "#200");
+
+    // yeux rouges
+    drawPixel(ex + s, ey + 2*s, s, "#ff0033");
+    drawPixel(ex + 3*s, ey + 2*s, s, "#ff0033");
+}
+
+/* === GAME LOOP === */
+
+function update() {
+    if (finished) return;
+
+    player.vx = 0;
+    if (keys["ArrowRight"]) player.vx = 3;
+    if (keys["ArrowLeft"]) player.vx = -3;
+    if (keys["ArrowUp"] && player.onGround) {
+        player.vy = -11;
+        player.onGround = false;
+    }
+
+    player.vy += gravity;
+    player.x += player.vx;
+    player.y += player.vy;
+
+    if (player.y >= 300) {
+        player.y = 300;
+        player.vy = 0;
+        player.onGround = true;
+    }
+
+    enemies.forEach(e => {
+        e.x += e.dir * 1.5;
+        if (e.x < 200 || e.x > 720) e.dir *= -1;
+
+        if (Math.abs(player.x - e.x) < 20 && Math.abs(player.y - e.y) < 20) {
+            player.lives--;
+            player.x = player.checkpointX;
+            if (player.lives <= 0) {
+                level = 1;
+                player.lives = 3;
+                ui.textContent = "LE SIGNAL S’EFFONDRE…";
+                spawnEnemies();
+            }
+        }
+    });
+
+    if (player.x > 400) player.checkpointX = 400;
+
+    if (player.x > 760) {
+        level++;
+        player.x = 50;
+        player.checkpointX = 50;
+        spawnEnemies();
+        ui.textContent = "ZONE " + level + " – L’OMBRE APPROCHE";
+        if (level > 5) endGame();
+    }
+}
+
+function draw() {
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+
+    // sol
+    ctx.fillStyle = "#030308";
+    ctx.fillRect(0, 340, canvas.width, 80);
+
+    drawPlayer();
+    enemies.forEach(drawEnemy);
+
+    ctx.fillStyle = "#7df9ff";
+    ctx.fillText("VIES: " + player.lives, 10, 20);
+}
+
+function endGame() {
+    finished = true;
+    cinematic.style.display = "flex";
+    const lines = [
+        "📼 1988",
+        "",
+        "Le cœur s’est arrêté.",
+        "Le monde a retenu son souffle.",
+        "",
+        "Puis…",
+        "un signal.",
+        "",
+        "FAIBLE.",
+        "MAIS VIVANT.",
+        "",
+        "RESTART."
+    ];
+    let i = 0;
+    cinematic.innerHTML = "<div id='t'></div>";
+    const t = document.getElementById("t");
+    const timer = setInterval(() => {
+        t.innerHTML += lines[i] + "<br>";
+        i++;
+        if (i >= lines.length) clearInterval(timer);
+    }, 700);
+}
+
+function loop() {
+    update();
+    draw();
+    requestAnimationFrame(loop);
+}
+
+loop();
+</script>
+
+</body>
+</html>
